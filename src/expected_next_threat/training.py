@@ -8,6 +8,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from .danger import DANGER_FEATURES, TREND_FEATURES, DangerModel, ShotCalibrator, ball_features, danger_targets, trend_features
 from .data import FPS, MATCH_IDS, Match, load_match
 from .engine import NextThreatEngine
 from .features import candidate_features, carrier_features
@@ -88,7 +89,7 @@ def prepare(match_ids=MATCH_IDS, quiet=True):
     return ms, pp, xt, xg
 
 
-def fit_engine(match_ids=MATCH_IDS, folds=FOLDS, return_oof=False, quiet=True, log=print):
+def fit_engine(match_ids=MATCH_IDS, folds=FOLDS, quiet=True, log=print):
     """Fit the full engine on match_ids. With return_oof, also return out-of-match scored frames
     (each match scored by fold models that never saw it) for validation."""
     ms, pp, xt, xg = prepare(match_ids, quiet)
@@ -111,8 +112,6 @@ def fit_engine(match_ids=MATCH_IDS, folds=FOLDS, return_oof=False, quiet=True, l
     carry = CarryModel().fit(K)
     engine = NextThreatEngine(xt, xg, receiver, action, carry)
     log(f"full fit: receiver T = {receiver.temperature:.3f}, action T = {action.temperature:.3f}")
-    if not return_oof:
-        return engine
     oof = []
     for k, fm in enumerate(folds):
         tr = A[~A.match_id.isin(fm)]
@@ -130,4 +129,46 @@ def fit_engine(match_ids=MATCH_IDS, folds=FOLDS, return_oof=False, quiet=True, l
         sub["ent_full"] = sub.p_keep * sub.v_carry + sub.p_pass * sub.ent + sub.p_shot * sub.xg_here
         oof.append(sub)
         log(f"oof fold {k}: action T = {act_k.temperature:.3f}")
-    return engine, pd.concat(oof, ignore_index=True), A, R
+    oof = pd.concat(oof, ignore_index=True)
+    engine, oof = fit_stage2(engine, oof, A, ms, pp, carriers, folds, log)
+    return engine, oof, A, R
+
+
+def fit_stage2(engine, oof, A, ms, pp, carriers, folds=FOLDS, log=print):
+    """Shot calibration and the danger layer, both fitted on out-of-match engine scores."""
+    oof = oof.sort_values(["match_id", "frame"]).reset_index(drop=True)
+    y_shot = (oof.act == "shot").values.astype(int)
+    P = oof[["p_keep", "p_pass", "p_shot", "p_other"]].values
+    Pc = np.zeros_like(P)
+    fold_of = oof.match_id.map({m: k for k, fm in enumerate(folds) for m in fm}).values
+    for k in range(len(folds)):
+        te = fold_of == k
+        Pc[te] = ShotCalibrator().fit(P[~te, 2], y_shot[~te])(P[te])
+    engine.shot_calibrator = ShotCalibrator().fit(P[:, 2], y_shot)
+    oof["p_keep_c"], oof["p_pass_c"], oof["p_shot_c"], oof["p_other_c"] = Pc.T
+    oof["ent_full_raw"] = oof.ent_full
+    oof["ent_full"] = oof.p_keep_c * oof.v_carry + oof.p_pass_c * oof.ent + oof.p_shot_c * oof.xg_here
+    oof = oof.merge(A[["match_id", "frame", "max_mate_xt", "mean_mate_xt"]], on=["match_id", "frame"], how="left")
+    parts = []
+    for m, g in oof.groupby("match_id", sort=False):
+        C = carriers[m].set_index("frame").loc[g.frame.values, ["carrier_slot", "sign"]].reset_index()
+        g = g.reset_index(drop=True)
+        g["carrier_slot"] = C.carrier_slot.values; g["sign"] = C.sign.values
+        bf = ball_features(ms[m], g.frame.values.astype(int), g.carrier_slot.values.astype(int), g.sign.values.astype(float), engine.xt)
+        tg = danger_targets(ms[m], g, pp)
+        parts.append(pd.concat([g, bf, tg], axis=1))
+    oof = trend_features(pd.concat(parts, ignore_index=True))
+    D = oof[~oof.ball_in_box].reset_index(drop=True)
+    pd_ = np.full(len(D), np.nan); pd0 = np.full(len(D), np.nan)
+    fold_d = D.match_id.map({m: k for k, fm in enumerate(folds) for m in fm}).values
+    no_trend = [c for c in DANGER_FEATURES if c not in TREND_FEATURES]
+    for k in range(len(folds)):
+        te = fold_d == k
+        pd_[te] = DangerModel().fit(D[~te]).predict(D[te])
+        m0 = DangerModel(); m0.features = no_trend
+        pd0[te] = m0.fit(D[~te]).predict(D[te])
+    D["p_danger5"] = pd_; D["p_danger5_no_trend"] = pd0
+    engine.danger = DangerModel().fit(D)
+    log(f"danger layer: {len(D)} frames, base rate {D.danger5.mean():.3f}")
+    oof = oof.merge(D[["match_id", "frame", "p_danger5", "p_danger5_no_trend"]], on=["match_id", "frame"], how="left")
+    return engine, oof

@@ -54,3 +54,13 @@ def test_engine_outputs_are_probabilities(match):
     np.testing.assert_allclose(out.ent_full, out.ent_carry_part + out.ent_pass_part + out.ent_shot_part)
     agg, cand = eng.pass_layer(match, C, return_candidates=True)
     np.testing.assert_allclose(cand.groupby("frame").p_receiver.sum().values, 1, atol=1e-9)
+
+
+@pytest.mark.skipif(not (PRETRAINED / "danger.txt").exists(), reason="danger layer not built")
+def test_danger_layer_is_a_probability(match):
+    eng = NextThreatEngine.pretrained()
+    out = eng.predict_frames(match, carriers(np.arange(20, 180, 2)))
+    p = out.p_danger5.dropna()
+    assert len(p) > 0 and ((p >= 0) & (p <= 1)).all()
+    assert out.loc[out.ball_in_box, "p_danger5"].isna().all()
+    assert (out.p_shot <= 0.99).all()   # shot calibrator caps the tail

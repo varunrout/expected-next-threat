@@ -11,6 +11,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from .danger import DangerModel, ShotCalibrator, ball_features, trend_features
 from .data import FPS, Match
 from .features import candidate_features, carrier_features, receiver_targets
 from .models import ActionModel, CarryModel, ReceiverModel, load_booster, save_booster
@@ -23,8 +24,11 @@ _GH_W = _GH_W / _GH_W.sum()
 
 
 class NextThreatEngine:
-    def __init__(self, xt: np.ndarray, xg: XG, receiver: ReceiverModel, action: ActionModel, carry: CarryModel):
+    def __init__(self, xt: np.ndarray, xg: XG, receiver: ReceiverModel, action: ActionModel, carry: CarryModel,
+                 shot_calibrator: ShotCalibrator | None = None, danger: DangerModel | None = None):
         self.xt, self.xg, self.receiver, self.action, self.carry = xt, xg, receiver, action, carry
+        self.shot_calibrator = shot_calibrator or ShotCalibrator()
+        self.danger = danger
 
     # ------------------------------------------------------------------ layers
     def pass_layer(self, M: Match, C: pd.DataFrame, return_candidates: bool = False):
@@ -67,7 +71,7 @@ class NextThreatEngine:
         for c in ("pmax", "max_mate_xt", "mean_mate_xt"):
             F[c] = agg[c].values
         F["ent"] = agg.ent.fillna(0).values
-        PA = self.action.predict(F)
+        PA = self.shot_calibrator(self.action.predict(F))
         V, cv = self.carry_value(F, L, W)
         out = C.reset_index(drop=True).copy()
         out["p_keep"], out["p_pass"], out["p_shot"], out["p_other"] = PA.T
@@ -82,14 +86,27 @@ class NextThreatEngine:
             out[k] = v
         out["cx"], out["cy"] = F.cx.values, F.cy.values
         out["pmax"], out["max_mate_xt"], out["mean_mate_xt"] = F.pmax.values, F.max_mate_xt.values, F.mean_mate_xt.values
+        if self.danger is not None and "tp" in out:
+            out = self.add_danger(M, out)
+        return out
+
+    def add_danger(self, M: Match, out: pd.DataFrame) -> pd.DataFrame:
+        """P(box entry or shot in the next 5 s), for frames with the ball outside the opponent box."""
+        if "match_id" not in out:
+            out = out.assign(match_id=M.match_id)
+        out = trend_features(out)
+        bf = ball_features(M, out.frame.values.astype(int), out.carrier_slot.values.astype(int), out.sign.values.astype(float), self.xt)
+        for c in bf:
+            out[c] = bf[c].values
+        p = self.danger.predict(out)
+        out["p_danger5"] = np.where(out.ball_in_box.values, np.nan, p)
         return out
 
     def predict_match(self, match: Match) -> pd.DataFrame:
         """ENT for every 0.2 s on-ball frame of a match."""
         pp, _ = stitch_possessions(match.events)
         C = carrier_frames(match, pp)
-        out = self.predict_frames(match, C)
-        out.insert(0, "match_id", match.match_id)
+        out = self.predict_frames(match, C.assign(match_id=match.match_id))
         out["t"] = out.frame / FPS
         return out
 
@@ -101,7 +118,9 @@ class NextThreatEngine:
         for tgt, (mu, sd) in self.carry.boosters.items():
             save_booster(mu, folder / f"carry_{tgt}_mean.txt"); save_booster(sd, folder / f"carry_{tgt}_spread.txt")
         meta = dict(xt=self.xt.tolist(), xg=self.xg.to_dict(), receiver_temperature=self.receiver.temperature,
-                    action_temperature=self.action.temperature)
+                    action_temperature=self.action.temperature, shot_calibrator=self.shot_calibrator.to_dict())
+        if self.danger is not None:
+            save_booster(self.danger.booster, folder / "danger.txt")
         (folder / "meta.json").write_text(json.dumps(meta, indent=1))
 
     @classmethod
@@ -112,7 +131,9 @@ class NextThreatEngine:
                             for t in CarryModel.targets})
         return cls(np.asarray(meta["xt"]), XG(**meta["xg"]),
                    ReceiverModel(load_booster(folder / "receiver.txt"), meta["receiver_temperature"]),
-                   ActionModel(load_booster(folder / "action.txt"), meta["action_temperature"]), carry)
+                   ActionModel(load_booster(folder / "action.txt"), meta["action_temperature"]), carry,
+                   ShotCalibrator(**meta.get("shot_calibrator", {})),
+                   DangerModel(load_booster(folder / "danger.txt")) if (folder / "danger.txt").exists() else None)
 
     @classmethod
     def pretrained(cls) -> "NextThreatEngine":
