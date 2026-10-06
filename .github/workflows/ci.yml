@@ -1,0 +1,26 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.10", "3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install ".[dev]"
+      - run: pytest -q -m "not network"
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install .
+      - name: one real match end to end (downloads open data)
+        run: python -c "from expected_next_threat import NextThreatEngine, load_match; e=NextThreatEngine.pretrained(); out=e.predict_match(load_match(1996435)); print(out[['t','ent_full','p_keep','p_pass','p_shot']].describe())"
