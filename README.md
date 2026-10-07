@@ -12,4 +12,6 @@ match = load_match(1996435)          # SkillCorner open data; downloaded and cac
 live = engine.predict_match(match)   # one row per 0.2 s on-ball frame
 ```
 
+A worked example, with a goal possession and one frame opened up, is in [`notebooks/demo.ipynb`](notebooks/demo.ipynb).
+
 Data: SkillCorner open data (A-League 2024/25), pinned to commit `4340d27`.
