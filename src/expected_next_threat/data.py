@@ -79,10 +79,28 @@ class Match:
     BY: np.ndarray
     BDET: np.ndarray
     slot: dict = field(default_factory=dict)
+    periods: list = field(default_factory=list)   # [{period, start_frame, end_frame}, ...]
 
     @property
     def nf(self) -> int:
         return self.X.shape[0]
+
+    def frame_at(self, clock: str) -> int:
+        """Frame for a match-clock string such as "74:12" (second half starts at 45:00)."""
+        mm, ss = clock.split(":")
+        sec = int(mm) * 60 + float(ss)
+        per = sorted(self.periods, key=lambda p: p["period"])
+        if not per:
+            return int(sec * FPS)
+        p = per[0] if (sec < 45 * 60 or len(per) == 1) else per[1]
+        base = 0 if p["period"] == 1 else 45 * 60
+        return int(p["start_frame"] + (sec - base) * FPS)
+
+    def clock_at(self, frame: int) -> str:
+        per = sorted(self.periods, key=lambda p: p["period"])
+        p = next((q for q in per if q["start_frame"] <= frame <= q["end_frame"]), per[0] if per else None)
+        sec = frame / FPS if p is None else (frame - p["start_frame"]) / FPS + (0 if p["period"] == 1 else 45 * 60)
+        return f"{int(sec // 60):02d}:{int(sec % 60):02d}"
 
 
 def _parse_tracking(path: Path, pid_slot: dict):
@@ -133,4 +151,5 @@ def load_match(match_id: int, quiet: bool = False) -> Match:
         np.savez_compressed(npz, X=X, Y=Y, DET=DET, BX=BX, BY=BY, BDET=BDET)
     return Match(match_id=match_id, pitch_length=float(meta["pitch_length"]), pitch_width=float(meta["pitch_width"]),
                  events=events, players=pl, pids=pids, team=pl.team_id.values, gk=pl.is_gk.values.astype(bool),
-                 X=X, Y=Y, DET=DET, BX=BX, BY=BY, BDET=BDET, slot=slot)
+                 X=X, Y=Y, DET=DET, BX=BX, BY=BY, BDET=BDET, slot=slot,
+                 periods=[dict(period=p["period"], start_frame=p["start_frame"], end_frame=p["end_frame"]) for p in meta.get("match_periods", [])])

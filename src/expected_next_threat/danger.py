@@ -93,10 +93,21 @@ def danger_targets(M: Match, C: pd.DataFrame, pp: pd.DataFrame, horizon_s: int =
 
 
 class DangerModel:
+    """LightGBM, then an isotonic map fitted on out-of-match scores (the raw model runs a little hot above 0.6)."""
     features = DANGER_FEATURES
 
-    def __init__(self, booster=None):
+    def __init__(self, booster=None, calib_x=None, calib_y=None):
         self.booster = booster
+        self.calib_x = None if calib_x is None else np.asarray(calib_x, float)
+        self.calib_y = None if calib_y is None else np.asarray(calib_y, float)
+
+    def calibrate(self, raw, y) -> "DangerModel":
+        iso = IsotonicRegression(y_min=0.0, y_max=1.0, out_of_bounds="clip").fit(raw, y)
+        self.calib_x, self.calib_y = iso.X_thresholds_, iso.y_thresholds_
+        return self
+
+    def predict_raw(self, F: pd.DataFrame) -> np.ndarray:
+        return self.booster.predict(F[self.features])
 
     def fit(self, D: pd.DataFrame) -> "DangerModel":
         """D: frames with the ball outside the box, DANGER_FEATURES, danger5, tp (for weights)."""
@@ -105,4 +116,11 @@ class DangerModel:
         return self
 
     def predict(self, F: pd.DataFrame) -> np.ndarray:
-        return self.booster.predict(F[self.features])
+        p = self.predict_raw(F)
+        return p if self.calib_x is None else np.interp(p, self.calib_x, self.calib_y)
+
+    def predict_calibrated(self, raw) -> np.ndarray:
+        return np.interp(raw, self.calib_x, self.calib_y)
+
+    def calibration_dict(self):
+        return dict(x=None if self.calib_x is None else self.calib_x.tolist(), y=None if self.calib_y is None else self.calib_y.tolist())

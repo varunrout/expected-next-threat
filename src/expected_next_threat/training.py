@@ -9,6 +9,8 @@ import numpy as np
 import pandas as pd
 
 from .danger import DANGER_FEATURES, TREND_FEATURES, DangerModel, ShotCalibrator, ball_features, danger_targets, trend_features
+from types import SimpleNamespace
+
 from .data import FPS, MATCH_IDS, Match, load_match
 from .engine import NextThreatEngine
 from .features import candidate_features, carrier_features
@@ -90,8 +92,10 @@ def prepare(match_ids=MATCH_IDS, quiet=True):
 
 
 def fit_engine(match_ids=MATCH_IDS, folds=FOLDS, quiet=True, log=print):
-    """Fit the full engine on match_ids. With return_oof, also return out-of-match scored frames
-    (each match scored by fold models that never saw it) for validation."""
+    """Fit the full engine on match_ids, and score every match with fold models that never saw it.
+
+    Returns a namespace: engine (fitted on all matches), oof (out-of-match scored carrier frames),
+    A (action rows), R (receiver rows with out-of-match p_oof), ms, pp, carriers, folds."""
     ms, pp, xt, xg = prepare(match_ids, quiet)
     folds = [tuple(m for m in fm if m in ms) for fm in folds]
     R = finish_receiver_rows(pd.concat([receiver_rows(ms[m], pp) for m in match_ids], ignore_index=True))
@@ -100,6 +104,8 @@ def fit_engine(match_ids=MATCH_IDS, folds=FOLDS, quiet=True, log=print):
     for k, fm in enumerate(folds):
         rec = ReceiverModel().fit(R[~R.match_id.isin(fm)])
         rec_folds[k] = rec
+        te_r = R.match_id.isin(fm).values
+        R.loc[te_r, "p_oof"] = rec.predict(R[te_r], pd.factorize(R.frame_uid[te_r])[0])
         eng = NextThreatEngine(xt, xg, rec, None, None)
         for m in fm:
             agg = eng.pass_layer(ms[m], carriers[m])
@@ -122,6 +128,8 @@ def fit_engine(match_ids=MATCH_IDS, folds=FOLDS, quiet=True, log=print):
         PA = act_k.predict(te)
         sub = te[["match_id", "frame", "tp", "act", "tte", "ent", "xg_here"]].copy()
         sub["p_keep"], sub["p_pass"], sub["p_shot"], sub["p_other"] = PA.T
+        cp = car_k.predict(te)
+        (sub["carry_dx"], sub["carry_sd_dx"]), (sub["carry_dy_out"], sub["carry_sd_dy"]) = cp["dx"], cp["dy_out"]
         Vs = []
         for m, g in te.groupby("match_id", sort=False):
             V, _ = ek.carry_value(g, ms[m].pitch_length, ms[m].pitch_width); Vs.append(pd.Series(V, index=g.index))
@@ -131,7 +139,7 @@ def fit_engine(match_ids=MATCH_IDS, folds=FOLDS, quiet=True, log=print):
         log(f"oof fold {k}: action T = {act_k.temperature:.3f}")
     oof = pd.concat(oof, ignore_index=True)
     engine, oof = fit_stage2(engine, oof, A, ms, pp, carriers, folds, log)
-    return engine, oof, A, R
+    return SimpleNamespace(engine=engine, oof=oof, A=A, R=R, ms=ms, pp=pp, carriers=carriers, folds=folds)
 
 
 def fit_stage2(engine, oof, A, ms, pp, carriers, folds=FOLDS, log=print):
@@ -164,11 +172,18 @@ def fit_stage2(engine, oof, A, ms, pp, carriers, folds=FOLDS, log=print):
     no_trend = [c for c in DANGER_FEATURES if c not in TREND_FEATURES]
     for k in range(len(folds)):
         te = fold_d == k
-        pd_[te] = DangerModel().fit(D[~te]).predict(D[te])
+        pd_[te] = DangerModel().fit(D[~te]).predict_raw(D[te])
         m0 = DangerModel(); m0.features = no_trend
-        pd0[te] = m0.fit(D[~te]).predict(D[te])
-    D["p_danger5"] = pd_; D["p_danger5_no_trend"] = pd0
-    engine.danger = DangerModel().fit(D)
+        pd0[te] = m0.fit(D[~te]).predict_raw(D[te])
+    # isotonic calibration, cross-fitted: fold k is mapped by a calibrator fitted on the other folds
+    y = D.danger5.values
+    pdc = np.zeros(len(D)); pd0c = np.zeros(len(D))
+    for k in range(len(folds)):
+        te = fold_d == k
+        pdc[te] = DangerModel().calibrate(pd_[~te], y[~te]).predict_calibrated(pd_[te])
+        pd0c[te] = DangerModel().calibrate(pd0[~te], y[~te]).predict_calibrated(pd0[te])
+    D["p_danger5_raw"] = pd_; D["p_danger5"] = pdc; D["p_danger5_no_trend"] = pd0c
+    engine.danger = DangerModel().fit(D).calibrate(pd_, y)
     log(f"danger layer: {len(D)} frames, base rate {D.danger5.mean():.3f}")
-    oof = oof.merge(D[["match_id", "frame", "p_danger5", "p_danger5_no_trend"]], on=["match_id", "frame"], how="left")
+    oof = oof.merge(D[["match_id", "frame", "p_danger5", "p_danger5_raw", "p_danger5_no_trend"]], on=["match_id", "frame"], how="left")
     return engine, oof

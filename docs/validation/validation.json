@@ -1,0 +1,272 @@
+{
+ "note": "All numbers are out of match: each match is scored by models that never saw it. Associations only.",
+ "folds": [
+  [
+   1959846,
+   2016236,
+   1986691,
+   2006229
+  ],
+  [
+   1899585,
+   2006363,
+   1874553,
+   2015213
+  ],
+  [
+   2017461,
+   2013725,
+   1996436,
+   2007448
+  ],
+  [
+   1953632,
+   2011166,
+   2007721,
+   2010085
+  ],
+  [
+   1925299,
+   1927964,
+   1996435,
+   1886347
+  ]
+ ],
+ "receiver": {
+  "frames": 99654,
+  "passes": 13818,
+  "mean_candidates": 9.0666,
+  "chance_top1": 0.1104,
+  "top1": 0.4858,
+  "top3": 0.8174,
+  "log_loss": 1.4271,
+  "ece_candidate": 0.0039,
+  "ece_top1": 0.016,
+  "reliability_candidate": [
+   {
+    "mean_p": 0.0307,
+    "observed": 0.0362,
+    "n": 631373
+   },
+   {
+    "mean_p": 0.1425,
+    "observed": 0.1555,
+    "n": 117277
+   },
+   {
+    "mean_p": 0.245,
+    "observed": 0.2488,
+    "n": 55970
+   },
+   {
+    "mean_p": 0.3462,
+    "observed": 0.3273,
+    "n": 33045
+   },
+   {
+    "mean_p": 0.4474,
+    "observed": 0.3905,
+    "n": 22681
+   },
+   {
+    "mean_p": 0.5474,
+    "observed": 0.4798,
+    "n": 16715
+   },
+   {
+    "mean_p": 0.6478,
+    "observed": 0.5656,
+    "n": 12295
+   },
+   {
+    "mean_p": 0.7467,
+    "observed": 0.6534,
+    "n": 8871
+   },
+   {
+    "mean_p": 0.8413,
+    "observed": 0.7801,
+    "n": 4698
+   },
+   {
+    "mean_p": 0.92,
+    "observed": 0.8918,
+    "n": 601
+   }
+  ]
+ },
+ "action": {
+  "frames": 157412,
+  "class_share": {
+   "keep": 0.5202,
+   "pass": 0.411,
+   "shot": 0.01,
+   "other": 0.0587
+  },
+  "log_loss": 0.7459,
+  "log_loss_location_only": 0.8886,
+  "accuracy": 0.6353,
+  "accuracy_location_only": 0.5087,
+  "ece_by_class": {
+   "keep": 0.0135,
+   "pass": 0.0127,
+   "shot": 0.0003,
+   "other": 0.0075
+  },
+  "shot_ece_before_recalibration": 0.0035,
+  "shot_ece_after_recalibration": 0.0007
+ },
+ "carry": {
+  "frames": 81774,
+  "r2_forward": 0.9132,
+  "r2_forward_constant_velocity": 0.6899,
+  "r2_outward": 0.8973,
+  "r2_outward_constant_velocity": 0.6317,
+  "within_1sd_forward": 0.697,
+  "within_1sd_outward": 0.6982,
+  "carry_value_r2_v_realised_xt": 0.9448,
+  "constant_velocity_r2_v_realised_xt": 0.8679
+ },
+ "danger": {
+  "frames": 153318,
+  "possessions": 4428,
+  "base_rate": 0.0769,
+  "auc": 0.9319,
+  "ece": 0.0017,
+  "ece_before_calibration": 0.0031,
+  "reliability": [
+   {
+    "mean_p": 0.0113,
+    "observed": 0.0115,
+    "n": 118960
+   },
+   {
+    "mean_p": 0.1342,
+    "observed": 0.1318,
+    "n": 11583
+   },
+   {
+    "mean_p": 0.2428,
+    "observed": 0.2502,
+    "n": 9329
+   },
+   {
+    "mean_p": 0.3568,
+    "observed": 0.356,
+    "n": 5402
+   },
+   {
+    "mean_p": 0.445,
+    "observed": 0.4347,
+    "n": 3147
+   },
+   {
+    "mean_p": 0.5519,
+    "observed": 0.5679,
+    "n": 2062
+   },
+   {
+    "mean_p": 0.6317,
+    "observed": 0.608,
+    "n": 1903
+   },
+   {
+    "mean_p": 0.7632,
+    "observed": 0.75,
+    "n": 696
+   },
+   {
+    "mean_p": 0.8345,
+    "observed": 0.83,
+    "n": 200
+   },
+   {
+    "mean_p": 0.9579,
+    "observed": 0.6667,
+    "n": 36
+   }
+  ],
+  "engine_over_naive_tracking": {
+   "base": 0.9194,
+   "plus": 0.9308,
+   "gain": 0.0114,
+   "ci95": [
+    0.0091,
+    0.0135
+   ]
+  },
+  "trend_over_engine": {
+   "base": 0.9308,
+   "plus": 0.9329,
+   "gain": 0.0021,
+   "ci95": [
+    0.0013,
+    0.0027
+   ]
+  },
+  "skillcorner": {
+   "frames": 80147,
+   "share_with_causal_option": 0.4367,
+   "possession_values": {
+    "head_to_head_engine_minus_skillcorner": {
+     "base": 0.9159,
+     "plus": 0.9273,
+     "gain": 0.0113,
+     "ci95": [
+      0.0074,
+      0.0164
+     ]
+    },
+    "engine_beyond_skillcorner": {
+     "base": 0.9159,
+     "plus": 0.9271,
+     "gain": 0.0111,
+     "ci95": [
+      0.0078,
+      0.0141
+     ]
+    }
+   },
+   "causal_option_menu": {
+    "head_to_head_engine_minus_skillcorner": {
+     "base": 0.9171,
+     "plus": 0.9273,
+     "gain": 0.0101,
+     "ci95": [
+      0.0075,
+      0.0127
+     ]
+    },
+    "engine_beyond_skillcorner": {
+     "base": 0.9171,
+     "plus": 0.9295,
+     "gain": 0.0123,
+     "ci95": [
+      0.0102,
+      0.0147
+     ]
+    }
+   },
+   "both": {
+    "head_to_head_engine_minus_skillcorner": {
+     "base": 0.9187,
+     "plus": 0.9273,
+     "gain": 0.0086,
+     "ci95": [
+      0.0041,
+      0.0135
+     ]
+    },
+    "engine_beyond_skillcorner": {
+     "base": 0.9187,
+     "plus": 0.9294,
+     "gain": 0.0108,
+     "ci95": [
+      0.0078,
+      0.0138
+     ]
+    }
+   }
+  }
+ }
+}

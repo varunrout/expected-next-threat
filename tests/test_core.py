@@ -64,3 +64,23 @@ def test_danger_layer_is_a_probability(match):
     assert len(p) > 0 and ((p >= 0) & (p <= 1)).all()
     assert out.loc[out.ball_in_box, "p_danger5"].isna().all()
     assert (out.p_shot <= 0.99).all()   # shot calibrator caps the tail
+
+
+@pytest.mark.skipif(not (PRETRAINED / "meta.json").exists(), reason="pretrained models not built")
+def test_pictures_render(match, tmp_path):
+    import matplotlib
+    matplotlib.use("Agg")
+    from expected_next_threat.viz import plot_frame, plot_moment, plot_possession
+    eng = NextThreatEngine.pretrained()
+    live = eng.predict_frames(match, carriers(np.arange(20, 180, 2)))
+    plot_frame(eng, match, live, frame=60)
+    plot_possession(match, live, possession=1)
+    plot_moment(eng, match, live, possession=1).savefig(tmp_path / "m.png")
+    assert (tmp_path / "m.png").stat().st_size > 10_000
+
+
+def test_match_clock_round_trip(match):
+    match.periods = [dict(period=1, start_frame=10, end_frame=28000), dict(period=2, start_frame=28100, end_frame=57000)]
+    assert match.frame_at("10:00") == 10 + 6000
+    assert match.frame_at("50:00") == 28100 + 3000
+    assert match.clock_at(match.frame_at("74:12")) == "74:12"

@@ -50,9 +50,9 @@ def carrier_frames(match: Match, pp: pd.DataFrame, drop_untracked: bool = True) 
         rows.append(pd.DataFrame(dict(frame=fs, carrier_slot=match.slot[r.player_id], tp=r.tp, team_id=r.team_id,
                                       sign=1.0 if r.attacking_side == "left_to_right" else -1.0,
                                       t_on_ball=(fs - int(r.frame_start)) / FPS, frame_start=int(r.frame_start),
-                                      frame_end=int(r.frame_end), end_type=r.end_type)))
+                                      frame_end=int(r.frame_end), end_type=r.end_type, event_id=r.event_id)))
     if not rows:
-        return pd.DataFrame(columns=["frame", "carrier_slot", "tp", "team_id", "sign", "t_on_ball", "frame_start", "frame_end", "end_type"])
+        return pd.DataFrame(columns=["frame", "carrier_slot", "tp", "team_id", "sign", "t_on_ball", "frame_start", "frame_end", "end_type", "event_id"])
     C = pd.concat(rows, ignore_index=True)
     # one carrier per frame: keep the first player possession that covers it (as in the analysis)
     C = C.sort_values("frame", kind="stable").drop_duplicates("frame", keep="first").reset_index(drop=True)

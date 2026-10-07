@@ -86,6 +86,7 @@ class NextThreatEngine:
             out[k] = v
         out["cx"], out["cy"] = F.cx.values, F.cy.values
         out["pmax"], out["max_mate_xt"], out["mean_mate_xt"] = F.pmax.values, F.max_mate_xt.values, F.mean_mate_xt.values
+        out["t"] = out.frame / FPS
         if self.danger is not None and "tp" in out:
             out = self.add_danger(M, out)
         return out
@@ -107,8 +108,17 @@ class NextThreatEngine:
         pp, _ = stitch_possessions(match.events)
         C = carrier_frames(match, pp)
         out = self.predict_frames(match, C.assign(match_id=match.match_id))
-        out["t"] = out.frame / FPS
         return out
+
+    # ------------------------------------------------------------------ pictures
+    def plot_frame(self, match: Match, live: pd.DataFrame | None = None, frame: int | None = None, clock: str | None = None, ax=None):
+        """Overlay for one frame. `clock` is the match clock, e.g. "74:12"."""
+        from .viz import plot_frame
+        return plot_frame(self, match, self.predict_match(match) if live is None else live, frame=frame, clock=clock, ax=ax)
+
+    def plot_possession(self, match: Match, possession: int, live: pd.DataFrame | None = None):
+        from .viz import plot_possession
+        return plot_possession(match, self.predict_match(match) if live is None else live, possession)
 
     # ------------------------------------------------------------------ persistence
     def save(self, folder: Path) -> None:
@@ -121,6 +131,7 @@ class NextThreatEngine:
                     action_temperature=self.action.temperature, shot_calibrator=self.shot_calibrator.to_dict())
         if self.danger is not None:
             save_booster(self.danger.booster, folder / "danger.txt")
+            meta["danger_calibration"] = self.danger.calibration_dict()
         (folder / "meta.json").write_text(json.dumps(meta, indent=1))
 
     @classmethod
@@ -133,7 +144,8 @@ class NextThreatEngine:
                    ReceiverModel(load_booster(folder / "receiver.txt"), meta["receiver_temperature"]),
                    ActionModel(load_booster(folder / "action.txt"), meta["action_temperature"]), carry,
                    ShotCalibrator(**meta.get("shot_calibrator", {})),
-                   DangerModel(load_booster(folder / "danger.txt")) if (folder / "danger.txt").exists() else None)
+                   DangerModel(load_booster(folder / "danger.txt"), *(meta.get("danger_calibration") or {}).values())
+                   if (folder / "danger.txt").exists() else None)
 
     @classmethod
     def pretrained(cls) -> "NextThreatEngine":
