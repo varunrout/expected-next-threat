@@ -33,23 +33,24 @@ Every probability model is calibrated on matches it did not train on. The struct
 
 ## Does it work?
 
-All numbers below are out of match: the 20 matches are split into five folds, and each match is scored only by models that never saw it. `python -m expected_next_threat.validate` reproduces every number in this section. They are associations, not causal effects.
+All numbers below are out of match: the 20 matches are split into five folds, and each match is scored only by models that never saw it. The xT and xG value maps are fitted out of fold too: the maps that score a fold are fitted on the other 16 matches only. `python -m expected_next_threat.validate` reproduces every number in this section. They are associations, not causal effects.
 
 ![Figure 2](docs/validation/evidence.png)
 
 *Figure 2. Left: predicted v observed frequency on unseen matches. Right: added AUC for predicting a box entry or shot in the next 5 s, with 95% match-bootstrap intervals.*
 
 - **Next receiver:** the right team-mate ranks first 48.6% of the time (chance 11.0%, about 9 candidates) and in the top three 81.7%. Calibration error is 0.004 per team-mate.
-- **Next action:** log-loss 0.746 against 0.889 for the same learner on location only; calibration error 0.014 or less per class.
+- **Next action:** log-loss 0.748 against 0.889 for the same learner on location only; calibration error 0.0165 or less per class.
 - **Carry:** where the carrier is 1 s later, R² 0.91 forward and 0.90 sideways (constant velocity: 0.69 and 0.63).
-- **Danger in the next 5 s:** AUC 0.932, calibration error 0.002. ENT adds +0.011 AUC [0.009, 0.014] over ball position, ball xT and team-mate xT, and its trend adds a further +0.002.
-- **Against SkillCorner's own live values** (frames more than 1 s before the pass or shot): ENT beats possession EPV, xShot and xLoss by +0.011 [0.007, 0.016] and the passing options available at that moment by +0.010 [0.007, 0.013], and adds +0.011 beyond both together.
+- **Danger in the next 5 s:** AUC 0.930, calibration error 0.002. ENT adds +0.010 AUC [0.008, 0.012] over ball position, ball xT and team-mate xT, and its trend adds a further +0.003.
+- **Against SkillCorner's possession values and passing options** (frames more than 1 s before the pass or shot): SkillCorner's `possession_epv_for_start`, `xshot_player_possession_start` and `xloss_player_possession_start` are set at the start of each player possession and held constant through it, while this engine updates every 0.2 s, so the two are not like for like. ENT beats those three by +0.008 [0.004, 0.013] and the passing options available at that moment by +0.008 [0.005, 0.011], and adds +0.008 beyond both together.
 
 SkillCorner's passing options, as listed, are anchored on the pass that was actually played: in the final moments before a pass, the eventual receiver is almost always in the menu. They are built to explain a pass afterwards; this engine forecasts before it. The comparison above uses only options that had already peaked, which is what a live system would see.
 
 ## Limits
 
 - The gains over naive tracking are real but modest, about +0.01 AUC.
+- The danger layer's top calibration bin (mean p 0.827, n = 112) observes 0.723, so the highest probabilities are over-confident.
 - The receiver model is calibrated on average, but slightly over-confident between 0.4 and 0.8, and its confidence does not change with how long the carrier has had the ball.
 - The carry horizon is 1 s; longer dribbles are a chain of 1 s steps. The pass part ignores completion probability: it means "if the pass is played and arrives".
 - Twenty matches from one league, with broadcast tracking (about 58% of player-frames detected). No player rankings: 20 matches cannot support them.

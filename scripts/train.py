@@ -8,6 +8,7 @@ reports the out-of-match evidence.
 from expected_next_threat.engine import PRETRAINED
 from expected_next_threat.training import fit_engine
 
-fit = fit_engine(log=lambda s: print(s, flush=True))
+# the pretrained engine is in-sample, so its rows use the all-match value maps (validate.py uses per-fold maps)
+fit = fit_engine(log=lambda s: print(s, flush=True), fold_value_maps=False)
 fit.engine.save(PRETRAINED)
 print("saved", PRETRAINED)

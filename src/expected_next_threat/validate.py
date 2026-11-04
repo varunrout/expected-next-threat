@@ -3,7 +3,7 @@
     python -m expected_next_threat.validate [output_folder]
 
 Fits the engine fold by fold (five folds of four matches; each match is scored only by models that
-never saw it), then reports:
+never saw it, and the xT and xG value maps that score a fold are fitted without that fold), then reports:
   1. calibration: receiver, action (with P(shot) recalibration), carry, danger layer
   2. danger in the next 5 s beyond naive tracking (AUC, match-bootstrap 95% CIs)
   3. head to head with SkillCorner's live-usable outputs (possession EPV / xShot / xLoss, causal option menu)
@@ -125,8 +125,15 @@ def carry_section(fit):
     L = K.match_id.map({m: M.pitch_length for m, M in fit.ms.items()}).values
     W = K.match_id.map({m: M.pitch_width for m, M in fit.ms.items()}).values
     sg = np.sign(K.cy.values + 1e-6)
-    real = xt_at(fit.engine.xt, np.clip(K.cx + K.dx, -L / 2, L / 2), np.clip(K.cy + K.dy_out * sg, -W / 2, W / 2), L, W)
-    cv = xt_at(fit.engine.xt, np.clip(K.cx + cvx, -L / 2, L / 2), np.clip(K.cy + cvy * sg, -W / 2, W / 2), L, W)
+    mid = K.match_id.values
+    def xt_oof(x, y):  # each match is valued with the xT grid fitted without it
+        v = np.empty(len(K))
+        for m in np.unique(mid):
+            i = mid == m
+            v[i] = xt_at(fit.xt_by_match[m], np.asarray(x)[i], np.asarray(y)[i], L[i], W[i])
+        return v
+    real = xt_oof(np.clip(K.cx + K.dx, -L / 2, L / 2), np.clip(K.cy + K.dy_out * sg, -W / 2, W / 2))
+    cv = xt_oof(np.clip(K.cx + cvx, -L / 2, L / 2), np.clip(K.cy + cvy * sg, -W / 2, W / 2))
     return dict(frames=int(len(K)),
                 r2_forward=r4(r2_score(K.dx, K.carry_dx)), r2_forward_constant_velocity=r4(r2_score(K.dx, cvx)),
                 r2_outward=r4(r2_score(K.dy_out, K.carry_dy_out)), r2_outward_constant_velocity=r4(r2_score(K.dy_out, cvy)),
@@ -219,7 +226,7 @@ def evidence_figure(rep, path):
 
 def main(out_dir="validation"):
     out = Path(out_dir); out.mkdir(parents=True, exist_ok=True)
-    fit = fit_engine(log=lambda s: print(s, flush=True))
+    fit = fit_engine(log=lambda s: print(s, flush=True), fold_value_maps=True)
     rep = dict(note="All numbers are out of match: each match is scored by models that never saw it. Associations only.",
                folds=[list(map(int, f)) for f in fit.folds])
     rep["receiver"] = receiver_section(fit.R); print("receiver done", flush=True)

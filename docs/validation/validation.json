@@ -103,18 +103,18 @@
    "shot": 0.01,
    "other": 0.0587
   },
-  "log_loss": 0.7459,
+  "log_loss": 0.7478,
   "log_loss_location_only": 0.8886,
-  "accuracy": 0.6353,
+  "accuracy": 0.6349,
   "accuracy_location_only": 0.5087,
   "ece_by_class": {
-   "keep": 0.0135,
-   "pass": 0.0127,
-   "shot": 0.0003,
-   "other": 0.0075
+   "keep": 0.0165,
+   "pass": 0.0136,
+   "shot": 0.0005,
+   "other": 0.0084
   },
-  "shot_ece_before_recalibration": 0.0035,
-  "shot_ece_after_recalibration": 0.0007
+  "shot_ece_before_recalibration": 0.0036,
+  "shot_ece_after_recalibration": 0.0008
  },
  "carry": {
   "frames": 81774,
@@ -124,84 +124,79 @@
   "r2_outward_constant_velocity": 0.6317,
   "within_1sd_forward": 0.697,
   "within_1sd_outward": 0.6982,
-  "carry_value_r2_v_realised_xt": 0.9448,
-  "constant_velocity_r2_v_realised_xt": 0.8679
+  "carry_value_r2_v_realised_xt": 0.9436,
+  "constant_velocity_r2_v_realised_xt": 0.8648
  },
  "danger": {
   "frames": 153318,
   "possessions": 4428,
   "base_rate": 0.0769,
-  "auc": 0.9319,
-  "ece": 0.0017,
-  "ece_before_calibration": 0.0031,
+  "auc": 0.9298,
+  "ece": 0.0018,
+  "ece_before_calibration": 0.0041,
   "reliability": [
    {
-    "mean_p": 0.0113,
-    "observed": 0.0115,
-    "n": 118960
+    "mean_p": 0.0117,
+    "observed": 0.0119,
+    "n": 119854
    },
    {
-    "mean_p": 0.1342,
-    "observed": 0.1318,
-    "n": 11583
+    "mean_p": 0.156,
+    "observed": 0.159,
+    "n": 11776
    },
    {
-    "mean_p": 0.2428,
-    "observed": 0.2502,
-    "n": 9329
+    "mean_p": 0.244,
+    "observed": 0.2511,
+    "n": 8006
    },
    {
-    "mean_p": 0.3568,
-    "observed": 0.356,
-    "n": 5402
+    "mean_p": 0.3375,
+    "observed": 0.3182,
+    "n": 5465
    },
    {
-    "mean_p": 0.445,
-    "observed": 0.4347,
-    "n": 3147
+    "mean_p": 0.4459,
+    "observed": 0.4494,
+    "n": 2868
    },
    {
-    "mean_p": 0.5519,
-    "observed": 0.5679,
-    "n": 2062
+    "mean_p": 0.5456,
+    "observed": 0.5476,
+    "n": 3287
    },
    {
-    "mean_p": 0.6317,
-    "observed": 0.608,
-    "n": 1903
+    "mean_p": 0.631,
+    "observed": 0.6148,
+    "n": 810
    },
    {
-    "mean_p": 0.7632,
-    "observed": 0.75,
-    "n": 696
+    "mean_p": 0.7468,
+    "observed": 0.7391,
+    "n": 1119
    },
    {
-    "mean_p": 0.8345,
-    "observed": 0.83,
-    "n": 200
-   },
-   {
-    "mean_p": 0.9579,
-    "observed": 0.6667,
-    "n": 36
+    "mean_p": 0.827,
+    "observed": 0.7232,
+    "n": 112
    }
   ],
   "engine_over_naive_tracking": {
-   "base": 0.9194,
-   "plus": 0.9308,
-   "gain": 0.0114,
+   "base": 0.9185,
+   "plus": 0.9285,
+   "gain": 0.01,
    "ci95": [
-    0.0091,
-    0.0135
+    0.0077,
+    0.012
    ]
   },
   "trend_over_engine": {
-   "base": 0.9308,
-   "plus": 0.9329,
-   "gain": 0.0021,
+   "base": 0.9285,
+   "plus": 0.9311,
+   "gain": 0.0026,
    "ci95": [
-    0.0013,
-    0.0027
+    0.0018,
+    0.0034
    ]
   },
   "skillcorner": {
@@ -209,61 +204,61 @@
    "share_with_causal_option": 0.4367,
    "possession_values": {
     "head_to_head_engine_minus_skillcorner": {
-     "base": 0.9159,
-     "plus": 0.9273,
-     "gain": 0.0113,
+     "base": 0.9158,
+     "plus": 0.9239,
+     "gain": 0.0082,
      "ci95": [
-      0.0074,
-      0.0164
+      0.0042,
+      0.0134
      ]
     },
     "engine_beyond_skillcorner": {
-     "base": 0.9159,
-     "plus": 0.9271,
-     "gain": 0.0111,
+     "base": 0.9158,
+     "plus": 0.9245,
+     "gain": 0.0087,
      "ci95": [
-      0.0078,
-      0.0141
+      0.0056,
+      0.0116
      ]
     }
    },
    "causal_option_menu": {
     "head_to_head_engine_minus_skillcorner": {
-     "base": 0.9171,
-     "plus": 0.9273,
-     "gain": 0.0101,
+     "base": 0.9159,
+     "plus": 0.9239,
+     "gain": 0.0081,
      "ci95": [
-      0.0075,
-      0.0127
+      0.0051,
+      0.0108
      ]
     },
     "engine_beyond_skillcorner": {
-     "base": 0.9171,
-     "plus": 0.9295,
-     "gain": 0.0123,
+     "base": 0.9159,
+     "plus": 0.9256,
+     "gain": 0.0098,
      "ci95": [
-      0.0102,
-      0.0147
+      0.0074,
+      0.0121
      ]
     }
    },
    "both": {
     "head_to_head_engine_minus_skillcorner": {
-     "base": 0.9187,
-     "plus": 0.9273,
-     "gain": 0.0086,
+     "base": 0.918,
+     "plus": 0.9239,
+     "gain": 0.006,
      "ci95": [
-      0.0041,
-      0.0135
+      0.0007,
+      0.0113
      ]
     },
     "engine_beyond_skillcorner": {
-     "base": 0.9187,
-     "plus": 0.9294,
-     "gain": 0.0108,
+     "base": 0.918,
+     "plus": 0.9263,
+     "gain": 0.0084,
      "ci95": [
-      0.0078,
-      0.0138
+      0.0058,
+      0.0113
      ]
     }
    }

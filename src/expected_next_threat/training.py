@@ -80,36 +80,51 @@ def action_rows(M: Match, C: pd.DataFrame, agg: pd.DataFrame, xt, xg) -> pd.Data
     return F
 
 
+def fit_value_maps(ms, pp, exclude=()):
+    """Fit the 12 x 8 xT grid and the distance-angle xG on every match in ms except those in exclude."""
+    keep = [m for m in ms if m not in exclude]
+    pitch = pd.DataFrame({m: dict(pitch_length=ms[m].pitch_length, pitch_width=ms[m].pitch_width) for m in keep}).T
+    pk = pp[pp.match_id.isin(keep)]
+    return fit_xt(pk, pitch), XG().fit(pk, pitch)
+
+
 def prepare(match_ids=MATCH_IDS, quiet=True):
-    """Load matches, stitch possessions, fit the value maps."""
+    """Load matches, stitch possessions, fit the value maps on all of them."""
     ms = {m: load_match(m, quiet=quiet) for m in match_ids}
     ev = pd.concat([m.events for m in ms.values()], ignore_index=True)
     pp, tp = stitch_possessions(ev)
-    pitch = pd.DataFrame({m: dict(pitch_length=M.pitch_length, pitch_width=M.pitch_width) for m, M in ms.items()}).T
-    xt = fit_xt(pp, pitch)
-    xg = XG().fit(pp, pitch)
+    xt, xg = fit_value_maps(ms, pp)
     return ms, pp, xt, xg
 
 
-def fit_engine(match_ids=MATCH_IDS, folds=FOLDS, quiet=True, log=print):
+def fit_engine(match_ids=MATCH_IDS, folds=FOLDS, quiet=True, log=print, fold_value_maps=True):
     """Fit the full engine on match_ids, and score every match with fold models that never saw it.
 
+    With fold_value_maps (the default) the xT grid and the xG model that score fold k are fitted on the
+    matches outside fold k only, and feed that fold's pass layer, action rows, carry value, ball features
+    and danger features. The returned engine always carries the maps fitted on all matches (the pretrained
+    engine is in-sample anyway). Pass fold_value_maps=False to reproduce the pretrained models, whose
+    action and carry rows were built with the all-match maps.
+
     Returns a namespace: engine (fitted on all matches), oof (out-of-match scored carrier frames),
-    A (action rows), R (receiver rows with out-of-match p_oof), ms, pp, carriers, folds."""
+    A (action rows), R (receiver rows with out-of-match p_oof), ms, pp, carriers, folds,
+    xt_by_match (the xT grid that scored each match)."""
     ms, pp, xt, xg = prepare(match_ids, quiet)
     folds = [tuple(m for m in fm if m in ms) for fm in folds]
     R = finish_receiver_rows(pd.concat([receiver_rows(ms[m], pp) for m in match_ids], ignore_index=True))
     carriers = {m: carrier_frames(ms[m], pp, drop_untracked=False) for m in match_ids}  # as in the analysis
-    rec_folds, A_parts = {}, []
+    rec_folds, A_parts, maps = {}, [], {}
     for k, fm in enumerate(folds):
+        maps[k] = fit_value_maps(ms, pp, exclude=fm) if fold_value_maps else (xt, xg)
+        xt_k, xg_k = maps[k]
         rec = ReceiverModel().fit(R[~R.match_id.isin(fm)])
         rec_folds[k] = rec
         te_r = R.match_id.isin(fm).values
         R.loc[te_r, "p_oof"] = rec.predict(R[te_r], pd.factorize(R.frame_uid[te_r])[0])
-        eng = NextThreatEngine(xt, xg, rec, None, None)
+        eng = NextThreatEngine(xt_k, xg_k, rec, None, None)
         for m in fm:
             agg = eng.pass_layer(ms[m], carriers[m])
-            A_parts.append(action_rows(ms[m], carriers[m], agg, xt, xg))
+            A_parts.append(action_rows(ms[m], carriers[m], agg, xt_k, xg_k))
         log(f"receiver fold {k}: T = {rec.temperature:.3f}")
     A = pd.concat(A_parts, ignore_index=True).sort_values(["match_id", "frame"]).reset_index(drop=True)
     receiver = ReceiverModel().fit(R)
@@ -123,7 +138,7 @@ def fit_engine(match_ids=MATCH_IDS, folds=FOLDS, quiet=True, log=print):
         tr = A[~A.match_id.isin(fm)]
         act_k = ActionModel().fit(tr)
         car_k = CarryModel().fit(tr[(tr.act == "keep") & tr.dx.notna() & tr.dy_out.notna()])
-        ek = NextThreatEngine(xt, xg, rec_folds[k], act_k, car_k)
+        ek = NextThreatEngine(*maps[k], rec_folds[k], act_k, car_k)
         te = A[A.match_id.isin(fm)]
         PA = act_k.predict(te)
         sub = te[["match_id", "frame", "tp", "act", "tte", "ent", "xg_here"]].copy()
@@ -138,12 +153,16 @@ def fit_engine(match_ids=MATCH_IDS, folds=FOLDS, quiet=True, log=print):
         oof.append(sub)
         log(f"oof fold {k}: action T = {act_k.temperature:.3f}")
     oof = pd.concat(oof, ignore_index=True)
-    engine, oof = fit_stage2(engine, oof, A, ms, pp, carriers, folds, log)
-    return SimpleNamespace(engine=engine, oof=oof, A=A, R=R, ms=ms, pp=pp, carriers=carriers, folds=folds)
+    xt_by_match = {m: maps[k][0] for k, fm in enumerate(folds) for m in fm}
+    engine, oof = fit_stage2(engine, oof, A, ms, pp, carriers, folds, log, xt_by_match)
+    return SimpleNamespace(engine=engine, oof=oof, A=A, R=R, ms=ms, pp=pp, carriers=carriers, folds=folds,
+                           xt_by_match=xt_by_match)
 
 
-def fit_stage2(engine, oof, A, ms, pp, carriers, folds=FOLDS, log=print):
-    """Shot calibration and the danger layer, both fitted on out-of-match engine scores."""
+def fit_stage2(engine, oof, A, ms, pp, carriers, folds=FOLDS, log=print, xt_by_match=None):
+    """Shot calibration and the danger layer, both fitted on out-of-match engine scores.
+
+    xt_by_match maps each match to the xT grid that scored it (default: the engine's own grid)."""
     oof = oof.sort_values(["match_id", "frame"]).reset_index(drop=True)
     y_shot = (oof.act == "shot").values.astype(int)
     P = oof[["p_keep", "p_pass", "p_shot", "p_other"]].values
@@ -162,7 +181,8 @@ def fit_stage2(engine, oof, A, ms, pp, carriers, folds=FOLDS, log=print):
         C = carriers[m].set_index("frame").loc[g.frame.values, ["carrier_slot", "sign"]].reset_index()
         g = g.reset_index(drop=True)
         g["carrier_slot"] = C.carrier_slot.values; g["sign"] = C.sign.values
-        bf = ball_features(ms[m], g.frame.values.astype(int), g.carrier_slot.values.astype(int), g.sign.values.astype(float), engine.xt)
+        bf = ball_features(ms[m], g.frame.values.astype(int), g.carrier_slot.values.astype(int), g.sign.values.astype(float),
+                           engine.xt if xt_by_match is None else xt_by_match[m])
         tg = danger_targets(ms[m], g, pp)
         parts.append(pd.concat([g, bf, tg], axis=1))
     oof = trend_features(pd.concat(parts, ignore_index=True))
